@@ -49,7 +49,7 @@ function createHandler({ version = readVersion(), hostname = os.hostname() } = {
     const { pathname } = new URL(req.url, 'http://localhost');
     switch (pathname) {
       case '/health':
-        sendJson(res, 200, { status: 'ok' });
+        sendJson(res, 500, { status: 'ok' });
         break;
       case '/version':
         sendJson(res, 200, { version, hostname });
