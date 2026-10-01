@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+  scripts:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        run: |
+          files=$(find . -type f -name "*.sh")
+          if [ -n "$files" ]; then
+            shellcheck $files
+          else
+            echo "No shell scripts found. Skipping ShellCheck."
+          fi
