@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       release_sha:
-        description: "Commit SHA to deploy"
+        description: "Commit SHA to deploy (leave empty to deploy the selected branch)"
         required: false
         type: string
 
@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -47,9 +49,11 @@ jobs:
 
       - name: Write version
         working-directory: app
-        run: echo "${GITHUB_SHA}" > VERSION
+        run: echo "${{ inputs.release_sha || github.sha }}" > VERSION
 
       - name: Create release package
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: |
           mkdir -p artifact
 
@@ -57,7 +61,7 @@ jobs:
             --exclude='app/node_modules' \
             --exclude='app/tests' \
             --exclude='app/test' \
-            -czf "artifact/webapp-${GITHUB_SHA}.tar.gz" \
+            -czf "artifact/webapp-${RELEASE_SHA}.tar.gz" \
             app \
             deploy \
             scripts
@@ -65,8 +69,8 @@ jobs:
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: webapp-${{ github.sha }}
-          path: artifact/webapp-${{ github.sha }}.tar.gz
+          name: webapp-${{ inputs.release_sha || github.sha }}
+          path: artifact/webapp-${{ inputs.release_sha || github.sha }}.tar.gz
 
   deploy:
     name: Deploy
@@ -81,7 +85,7 @@ jobs:
       - name: Download release artifact
         uses: actions/download-artifact@v4
         with:
-          name: webapp-${{ github.sha }}
+          name: webapp-${{ inputs.release_sha || github.sha }}
           path: artifact
 
       - name: Prepare SSH key
@@ -96,7 +100,7 @@ jobs:
           BASTION_HOST: ${{ vars.BASTION_HOST }}
           APP_HOST: ${{ vars.APP_HOSTS }}
           SSH_USER: ${{ vars.SSH_USER }}
-          SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: |
           scp \
             -i deploy-key.pem \
@@ -104,15 +108,15 @@ jobs:
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -o ProxyCommand="ssh -i deploy-key.pem -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ${SSH_USER}@${BASTION_HOST}" \
-            "artifact/webapp-${SHA}.tar.gz" \
-            "${SSH_USER}@${APP_HOST}:/tmp/webapp-${SHA}.tar.gz"
+            "artifact/webapp-${RELEASE_SHA}.tar.gz" \
+            "${SSH_USER}@${APP_HOST}:/tmp/webapp-${RELEASE_SHA}.tar.gz"
 
       - name: Run deployment
         env:
           BASTION_HOST: ${{ vars.BASTION_HOST }}
           APP_HOST: ${{ vars.APP_HOSTS }}
           SSH_USER: ${{ vars.SSH_USER }}
-          SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: |
           ssh \
             -i deploy-key.pem \
@@ -121,17 +125,17 @@ jobs:
             -o UserKnownHostsFile=/dev/null \
             -o ProxyCommand="ssh -i deploy-key.pem -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ${SSH_USER}@${BASTION_HOST}" \
             "${SSH_USER}@${APP_HOST}" \
-            "sudo bash -c 'tar -xzf /tmp/webapp-${SHA}.tar.gz -C /tmp && \
+            "sudo bash -c 'tar -xzf /tmp/webapp-${RELEASE_SHA}.tar.gz -C /tmp && \
             chmod +x /tmp/scripts/deploy.sh && \
-            /tmp/scripts/deploy.sh ${SHA}'"
+            /tmp/scripts/deploy.sh ${RELEASE_SHA}'"
 
       - name: Smoke test
         env:
           BASTION_HOST: ${{ vars.BASTION_HOST }}
-          SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: |
           for i in $(seq 1 10); do
-            if curl -fsS "http://${BASTION_HOST}/version" | grep -q "${SHA}"; then
+            if curl -fsS "http://${BASTION_HOST}/version" | grep -q "${RELEASE_SHA}"; then
               echo "Smoke test passed."
               exit 0
             fi
