@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+
   workflow_dispatch:
     inputs:
       release_sha:
@@ -51,6 +52,7 @@ jobs:
       - name: Create release package
         run: |
           mkdir -p artifact
+
           tar \
             --exclude='app/node_modules' \
             --exclude='app/tests' \
@@ -99,8 +101,9 @@ jobs:
           scp \
             -i deploy-key.pem \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o ProxyJump="${SSH_USER}@${BASTION_HOST}" \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o ProxyCommand="ssh -i deploy-key.pem -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ${SSH_USER}@${BASTION_HOST}" \
             "artifact/webapp-${SHA}.tar.gz" \
             "${SSH_USER}@${APP_HOST}:/tmp/webapp-${SHA}.tar.gz"
 
@@ -114,8 +117,9 @@ jobs:
           ssh \
             -i deploy-key.pem \
             -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o ProxyJump="${SSH_USER}@${BASTION_HOST}" \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o ProxyCommand="ssh -i deploy-key.pem -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ${SSH_USER}@${BASTION_HOST}" \
             "${SSH_USER}@${APP_HOST}" \
             "sudo bash -c 'tar -xzf /tmp/webapp-${SHA}.tar.gz -C /tmp && \
             chmod +x /tmp/scripts/deploy.sh && \
