@@ -7,7 +7,7 @@ Type=simple
 User=webapp
 WorkingDirectory=/opt/webapp/current
 Environment=PORT=3000
-ExecStart=/usr/bin/node /opt/webapp/current/src/app.js
+ExecStart=/usr/bin/node /opt/webapp/current/server.js
 Restart=always
 RestartSec=5
 
