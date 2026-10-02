@@ -1,0 +1,15 @@
+[Unit]
+Description=ShopLite Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=webapp
+WorkingDirectory=/opt/webapp/current
+Environment=PORT=3000
+ExecStart=/usr/bin/node /opt/webapp/current/src/app.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
