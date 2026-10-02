@@ -36,7 +36,7 @@ systemctl restart "${SERVICE_NAME}"
 
 echo "Waiting for application health..."
 
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
     if curl -fsS http://localhost:3000/health >/dev/null; then
         echo "Health check passed."
         exit 0
