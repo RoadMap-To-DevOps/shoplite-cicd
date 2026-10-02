@@ -56,8 +56,24 @@ done
 echo "Health check failed. Rolling back..."
 
 if [ -n "${PREVIOUS_RELEASE}" ] && [ -d "${PREVIOUS_RELEASE}" ]; then
+
+    # Restore the previous application release
     ln -sfn "${PREVIOUS_RELEASE}" "${CURRENT_LINK}"
+
+    # Restore the previous systemd configuration
+    PREVIOUS_SERVICE_FILE="${PREVIOUS_RELEASE}/deploy/webapp.service"
+
+    if [ -f "${PREVIOUS_SERVICE_FILE}" ]; then
+        cp "${PREVIOUS_SERVICE_FILE}" "/etc/systemd/system/webapp.service"
+        chmod 644 "/etc/systemd/system/webapp.service"
+        echo "Restored previous systemd service configuration."
+    else
+        echo "WARNING: Previous service file not found."
+    fi
+
+    systemctl daemon-reload
     systemctl restart "${SERVICE_NAME}"
+
     echo "Rolled back to: ${PREVIOUS_RELEASE}"
 else
     echo "No previous release available for rollback."
