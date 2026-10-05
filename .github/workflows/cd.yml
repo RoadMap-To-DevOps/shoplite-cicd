@@ -23,12 +23,22 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-
+    
+    outputs:
+      release_sha: ${{ steps.release.outputs.sha }}
+      
     steps:
-      - name: Checkout repository
+      - name: Checkout main
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_sha || github.sha }}
+          ref: main
+          fetch-depth: 0
+
+      - name: Checkout requested release
+        if: ${{ inputs.release_sha != '' }}
+        run: |
+          git fetch origin "${{ inputs.release_sha }}"
+          git checkout --detach "${{ inputs.release_sha }}"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -47,13 +57,22 @@ jobs:
         working-directory: app
         run: npm test
 
+      - name: Set release SHA
+        id: release
+        run: |
+          if [ -n "${{ inputs.release_sha }}" ]; then
+            echo "sha=${{ inputs.release_sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Write version
         working-directory: app
-        run: echo "${{ inputs.release_sha || github.sha }}" > VERSION
+        run: echo "${{ steps.release.outputs.sha }}" > VERSION
 
       - name: Create release package
         env:
-          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
         run: |
           mkdir -p artifact
 
@@ -69,8 +88,8 @@ jobs:
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: webapp-${{ inputs.release_sha || github.sha }}
-          path: artifact/webapp-${{ inputs.release_sha || github.sha }}.tar.gz
+          name: webapp-${{ steps.release.outputs.sha }}
+          path: artifact/webapp-${{ steps.release.outputs.sha }}.tar.gz
 
   deploy:
     name: Deploy
@@ -85,7 +104,7 @@ jobs:
       - name: Download release artifact
         uses: actions/download-artifact@v4
         with:
-          name: webapp-${{ inputs.release_sha || github.sha }}
+          name: webapp-${{ needs.build.outputs.release_sha }}
           path: artifact
 
       - name: Prepare SSH key
@@ -116,7 +135,7 @@ jobs:
           BASTION_HOST: ${{ vars.BASTION_HOST }}
           APP_HOST: ${{ vars.APP_HOSTS }}
           SSH_USER: ${{ vars.SSH_USER }}
-          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+          RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
         run: |
           ssh \
             -i deploy-key.pem \
@@ -132,7 +151,7 @@ jobs:
       - name: Smoke test
         env:
           BASTION_HOST: ${{ vars.BASTION_HOST }}
-          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+          RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
         run: |
           for i in $(seq 1 10); do
             if curl -fsS "http://${BASTION_HOST}/version" | grep -q "${RELEASE_SHA}"; then
