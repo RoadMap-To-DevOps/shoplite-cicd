@@ -37,7 +37,6 @@ jobs:
       - name: Checkout requested release
         if: ${{ inputs.release_sha != '' }}
         run: |
-          git fetch origin "${{ inputs.release_sha }}"
           git checkout --detach "${{ inputs.release_sha }}"
 
       - name: Setup Node.js
